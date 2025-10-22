@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "avl_tree.hh"
+#include "range_query.hh"
 
 int main() {
     AVLTree::AVLTree<int> tree;
@@ -19,11 +20,16 @@ int main() {
             break;
         case 'q':
             if (std::cin >> first >> second) {
-                    std::cout << tree.range_query(first, second) << std::endl;
+                    std::cout << AVLTree::range_query(tree, first, second) << std::endl;
             }
+        case 'e':
             break;
         default:
             std::cout << "unknown command" << std::endl;
+            break;
+        }
+
+        if (query == 'e') {
             break;
         }
     }
