@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
@@ -5,6 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <functional>
 
 namespace AVLTree {
 
@@ -16,10 +19,11 @@ enum class Error {
 
 template <typename KeyT>
 class AVLTree {
-   private:
+  private:
     struct Node {
         std::unique_ptr<Node> left_ = nullptr;
         std::unique_ptr<Node> right_ = nullptr;
+        Node *parent_ = nullptr;
 
         int64_t height_;
         KeyT key_;
@@ -30,11 +34,12 @@ class AVLTree {
     };
 
     std::unique_ptr<Node> root_ = nullptr;
+    std::less<KeyT> comp_{};
 
     int64_t get_height(const std::unique_ptr<Node>& node) const { return node ? node->height_ : 0; }
 
     int64_t get_balance_factor(const std::unique_ptr<Node>& node) const {
-        return node ? get_height(node->left_) - get_height(node->right_) : -1;
+        return node ? get_height(node->left_) - get_height(node->right_) : 0;
     }
 
     Error update_height(std::unique_ptr<Node>& node) {
@@ -52,8 +57,16 @@ class AVLTree {
         std::unique_ptr<Node> new_root = std::move(node->left_);
         std::unique_ptr<Node> temp = std::move(new_root->right_);
 
+        Node* original_parent = node->parent_;
+
+        new_root->parent_ = original_parent;
         new_root->right_ = std::move(node);
+        new_root->right_->parent_ = new_root.get();
         new_root->right_->left_ = std::move(temp);
+
+        if (new_root->right_->left_) {
+            new_root->right_->left_->parent_ = new_root->right_.get();
+        }
 
         update_height(new_root->right_);
         update_height(new_root);
@@ -65,18 +78,26 @@ class AVLTree {
 
     Error left_rotate(std::unique_ptr<Node>& node) {
         assert(node);
+        if (!node || !node->right_) return Error::NODE_NULLPTR;
 
         std::unique_ptr<Node> new_root = std::move(node->right_);
         std::unique_ptr<Node> temp = std::move(new_root->left_);
 
+        Node* original_parent = node->parent_;
+
+        new_root->parent_ = original_parent;
         new_root->left_ = std::move(node);
+        new_root->left_->parent_ = new_root.get();
         new_root->left_->right_ = std::move(temp);
+
+        if (new_root->left_->right_) {
+            new_root->left_->right_->parent_ = new_root->left_.get();
+        }
 
         update_height(new_root->left_);
         update_height(new_root);
 
         node = std::move(new_root);
-
         return Error::OK;
     }
 
@@ -89,9 +110,11 @@ class AVLTree {
         if (key < root->key_) {
             auto err = insert_node(root->left_, key);
             if (err != Error::OK) return err;
+            root->left_->parent_ = root.get();
         } else if (key > root->key_) {
             auto err = insert_node(root->right_, key);
             if (err != Error::OK) return err;
+            root->right_->parent_ = root.get();
         } else {
             return Error::REPEAT_ELEM;
         }
@@ -123,61 +146,34 @@ class AVLTree {
     }
 
     void generate_graph(std::ostream& out, const std::unique_ptr<Node>& node) const {
-        if (node == nullptr) return;
-
+        if (!node) return;
         std::string node_ptr = "node_" + std::to_string(reinterpret_cast<uintptr_t>(node.get()));
-
+        std::string parent_ptr = "node_" + std::to_string(reinterpret_cast<uintptr_t>(node->parent_));
         out << "\t" << node_ptr << " [shape=plaintext, style=filled, color=\"#fcf0d2\", label=<\n"
             << "\t\t<table BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"6\" "
-                "BGCOLOR=\"#bfb58f\" COLOR=\"#4d3d03\">\n"
+               "BGCOLOR=\"#bfb58f\" COLOR=\"#4d3d03\">\n"
+            << "\t\t\t<tr><td align=\"center\" colspan=\"2\"><FONT COLOR=\"#3a3a3a\"><b> " << node_ptr << "</b></FONT></td></tr>\n"
+            << "\t\t\t<tr><td align=\"center\" colspan=\"2\"><FONT COLOR=\"#4d3d03\">Key: <b>" << node->key_ << "</b></FONT></td></tr>\n"
+            << "\t\t\t<tr><td align=\"center\" colspan=\"2\"><FONT COLOR=\"#4d3d03\">Height: <b>" << node->height_ << "</b></FONT></td></tr>\n"
+            << "\t\t\t<tr><td align=\"center\" colspan=\"2\"><FONT COLOR=\"#4d3d03\">Parent: <b>" << parent_ptr << "</b></FONT></td></tr>\n"
             << "\t\t\t<tr>\n"
-            << "\t\t\t\t<td align=\"center\" colspan=\"2\">\n"
-            << "\t\t\t\t\t<FONT COLOR=\"#3a3a3a\"><b>Node: " << node_ptr << "</b></FONT>\n"
-            << "\t\t\t\t</td>\n"
-            << "\t\t\t</tr>\n"
-            << "\t\t\t<tr>\n"
-            << "\t\t\t\t<td align=\"center\" colspan=\"2\">\n"
-            << "\t\t\t\t\t<FONT COLOR=\"#4d3d03\">Value: <b>" << node->key_ << "</b></FONT>\n"
-            << "\t\t\t\t</td>\n"
-            << "\t\t\t</tr>\n"
-            << "\t\t\t<tr>\n"
-            << "\t\t\t\t<td align=\"center\" colspan=\"2\">\n"
-            << "\t\t\t\t\t<FONT COLOR=\"#4d3d03\">Height: <b>" << node->height_ << "</b></FONT>\n"
-            << "\t\t\t\t</td>\n"
-            << "\t\t\t</tr>\n"
-            << "\t\t\t<tr>\n"
-            << "\t\t\t\t<td WIDTH=\"150\" PORT=\"left\" align=\"center\">\n"
-            << "\t\t\t\t\t<FONT COLOR=\"#006400\"><b>Left: "
-            << (node->left_
-                    ? "node_" + std::to_string(reinterpret_cast<uintptr_t>(node->left_.get()))
-                    : "nullptr")
-            << "</b></FONT>\n"
-            << "\t\t\t\t</td>\n"
-            << "\t\t\t\t<td WIDTH=\"150\" PORT=\"right\" align=\"center\">\n"
-            << "\t\t\t\t\t<FONT COLOR=\"#8b0000\"><b>Right: "
-            << (node->right_
-                    ? "node_" + std::to_string(reinterpret_cast<uintptr_t>(node->right_.get()))
-                    : "nullptr")
-            << "</b></FONT>\n"
-            << "\t\t\t\t</td>\n"
+            << "\t\t\t\t<td WIDTH=\"150\" PORT=\"left\" align=\"center\"><FONT COLOR=\"#006400\"><b>Left: "
+            << (node->left_ ? "node_" + std::to_string(reinterpret_cast<uintptr_t>(node->left_.get())) : "nullptr") << "</b></FONT></td>\n"
+            << "\t\t\t\t<td WIDTH=\"150\" PORT=\"right\" align=\"center\"><FONT COLOR=\"#8b0000\"><b>Right: "
+            << (node->right_ ? "node_" + std::to_string(reinterpret_cast<uintptr_t>(node->right_.get())) : "nullptr") << "</b></FONT></td>\n"
             << "\t\t\t</tr>\n"
             << "\t\t</table>\n"
             << "\t>];\n";
 
         if (node->left_) {
             generate_graph(out, node->left_);
-            std::string left_id =
-                "node_" + std::to_string(reinterpret_cast<uintptr_t>(node->left_.get()));
-            out << "\t" << node_ptr << ":left -> " << left_id
-                << " [color=\"#006400\", style=bold, weight=1000];\n";
+            std::string left_id = "node_" + std::to_string(reinterpret_cast<uintptr_t>(node->left_.get()));
+            out << "\t" << node_ptr << ":left -> " << left_id << " [color=\"#006400\", style=bold];\n";
         }
-
         if (node->right_) {
             generate_graph(out, node->right_);
-            std::string right_id =
-                "node_" + std::to_string(reinterpret_cast<uintptr_t>(node->right_.get()));
-            out << "\t" << node_ptr << ":right -> " << right_id
-                << " [color=\"#8b0000\", style=bold, weight=1000];\n";
+            std::string right_id = "node_" + std::to_string(reinterpret_cast<uintptr_t>(node->right_.get()));
+            out << "\t" << node_ptr << ":right -> " << right_id << " [color=\"#8b0000\", style=bold];\n";
         }
     }
 
@@ -205,13 +201,103 @@ class AVLTree {
     AVLTree() = default;
     AVLTree(const AVLTree&) = delete;
     AVLTree& operator=(const AVLTree&) = delete;
-    AVLTree(const AVLTree&&) noexcept = default;
-    AVLTree& operator=(const AVLTree&&) noexcept = default;
+    AVLTree(AVLTree&&) noexcept = default;
+    AVLTree& operator=(AVLTree&&) noexcept = default;
+    ~AVLTree() = default;
+
+    class Iterator {
+        const Node* node_;
+
+      public:
+        explicit Iterator(const Node* node) : node_(node) {};
+
+        const KeyT& operator*() const {
+            assert(node_);
+            return node_->key_;
+        }
+
+        const KeyT* operator->() const {
+            assert(node_);
+            return &(node_->key_);
+        }
+
+        bool operator==(const Iterator& other) const {
+            return node_ == other.node_;
+        }
+
+        bool operator!=(const Iterator& other) const {
+            return node_ != other.node_;
+        }
+
+        Iterator& operator++() {
+            if (node_->right_ != nullptr) {
+                node_ = node_->right_.get();
+
+                while (node_->left_ != nullptr) {
+                    node_ = node_->left_.get();
+                }
+            } else {
+                const Node* current = node_;
+                while (current->parent_ != nullptr && current == current->parent_->right_.get()) {
+                    current = current->parent_;
+                }
+                node_ = current->parent_;
+            }
+            return *this;
+        }
+
+        Iterator& operator--() {
+            if (node_->left_ != nullptr) {
+                node_ = node_->left_.get();
+
+                while (node_->right_ != nullptr) {
+                    node_ = node_->right_.get();
+                }
+            } else {
+                const Node* current = node_;
+                while (current->parent_ != nullptr && current == current->parent_->left_.get()) {
+                    current = current->parent_;
+                }
+                node_ = current->parent_;
+            }
+            return *this;
+        }
+    }; // namespace Iterator
 
     void insert(KeyT key) {
         auto err = insert_node(root_, key);
         if (err != Error::OK) return;
         return;
+    }
+
+     Iterator lower_bound(const KeyT& key) const {
+        Node* current = root_.get();
+        Node* candidate = nullptr;
+
+        while (current) {
+            if (comp_(current->key_, key)) {
+                current = current->right_.get();
+            } else {
+                candidate = current;
+                current = current->left_.get();
+            }
+        }
+        return Iterator(candidate);
+    }
+
+    Iterator upper_bound(const KeyT& key) const {
+        Node* current = root_.get();
+        Node* candidate = nullptr;
+
+        while (current) {
+            if (comp_(key, current->key_)) {
+                candidate = current;
+                current = current->left_.get();
+            } else {
+                current = current->right_.get();
+            }
+        }
+        return Iterator(candidate);
     }
 
     bool dump_to_png() const {

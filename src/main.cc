@@ -1,16 +1,38 @@
 #include <iostream>
 
 #include "avl_tree.hh"
+#include "range_query.hh"
 
 int main() {
     AVLTree::AVLTree<int> tree;
-    tree.insert(10);
-    tree.insert(20);
-    tree.insert(30);
-    tree.insert(40);
-    tree.insert(50);
-    tree.insert(60);
-    tree.insert(70);
+
+    char query;
+
+    while (std::cin >> query) {
+        int key{0};
+        int first{0}, second{0};
+
+        switch (query) {
+        case 'k':
+            if (std::cin >> key) {
+                tree.insert(key);
+            }
+            break;
+        case 'q':
+            if (std::cin >> first >> second) {
+                    std::cout << AVLTree::range_query(tree, first, second) << std::endl;
+            }
+        case 'e':
+            break;
+        default:
+            std::cout << "unknown command" << std::endl;
+            break;
+        }
+
+        if (query == 'e') {
+            break;
+        }
+    }
 
     if (!tree.dump_to_png()) {
         std::cerr << "Failed to generate PNG dump!\n";
