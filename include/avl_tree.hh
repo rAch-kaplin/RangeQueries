@@ -319,7 +319,7 @@ class AVLTree {
             return false;
         }
 
-        std::cout << "Tree dumped to " << png_file << "\n";
+        //std::cout << "Tree dumped to " << png_file << "\n";
         return true;
     }
 };

@@ -1,4 +1,5 @@
 #include <iostream>
+#include <ostream>
 
 #include "avl_tree.hh"
 #include "range_query.hh"
@@ -20,7 +21,7 @@ int main() {
             break;
         case 'q':
             if (std::cin >> first >> second) {
-                    std::cout << AVLTree::range_query(tree, first, second) << std::endl;
+                    std::cout << AVLTree::range_query(tree, first, second) << " ";
             }
         case 'e':
             break;
@@ -33,6 +34,8 @@ int main() {
             break;
         }
     }
+
+    std::cout << std::endl;
 
     if (!tree.dump_to_png()) {
         std::cerr << "Failed to generate PNG dump!\n";

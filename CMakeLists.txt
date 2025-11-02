@@ -12,3 +12,19 @@ target_include_directories(
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+include(CTest)
+
+file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/tests/data/*.dat")
+
+foreach(testfile ${TEST_FILES})
+    get_filename_component(testname ${testfile} NAME_WE)
+
+    set(answer_file_range_queries "${CMAKE_CURRENT_SOURCE_DIR}/tests/answ/${testname}.ans")
+
+    add_test(
+        NAME range_queries_${testname}
+        COMMAND /bin/sh -c "./range_queries < ${testfile} | diff -u - ${answer_file_range_queries}"
+    )
+
+endforeach()
