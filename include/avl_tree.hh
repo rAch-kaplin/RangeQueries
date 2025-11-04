@@ -8,13 +8,23 @@
 #include <iostream>
 #include <memory>
 #include <functional>
+#include <stdexcept>
 
 namespace AVLTree {
 
-enum class Error {
-    OK = 0x000000,
-    NODE_NULLPTR = 0x000001,
-    REPEAT_ELEM = 0x000002,
+class AVLTException : public std::runtime_error {
+  public:
+    explicit AVLTException(const std::string& msg) : std::runtime_error(msg) {}
+};
+
+class NodeNullPtrErr : public AVLTException {
+  public:
+    NodeNullPtrErr() : AVLTException("null pointer") {}
+};
+
+class DuplicateKeyErr : public AVLTException {
+  public:
+    DuplicateKeyErr() : AVLTException("duplicate key in insertion") {}
 };
 
 template <typename KeyT>
@@ -42,17 +52,16 @@ class AVLTree {
         return node ? get_height(node->left_) - get_height(node->right_) : 0;
     }
 
-    Error update_height(std::unique_ptr<Node>& node) {
+    void update_height(std::unique_ptr<Node>& node) {
         assert(node);
-        if (node == nullptr) return Error::NODE_NULLPTR;
+        if (node == nullptr) throw NodeNullPtrErr();
 
         node->height_ = 1 + std::max(get_height(node->left_), get_height(node->right_));
-
-        return Error::OK;
     }
 
-    Error right_rotate(std::unique_ptr<Node>& node) {
+    void right_rotate(std::unique_ptr<Node>& node) {
         assert(node);
+        if (node == nullptr) throw NodeNullPtrErr();
 
         std::unique_ptr<Node> new_root = std::move(node->left_);
         std::unique_ptr<Node> temp = std::move(new_root->right_);
@@ -72,13 +81,11 @@ class AVLTree {
         update_height(new_root);
 
         node = std::move(new_root);
-
-        return Error::OK;
     }
 
-    Error left_rotate(std::unique_ptr<Node>& node) {
+    void left_rotate(std::unique_ptr<Node>& node) {
         assert(node);
-        if (!node || !node->right_) return Error::NODE_NULLPTR;
+        if (node == nullptr) throw NodeNullPtrErr();
 
         std::unique_ptr<Node> new_root = std::move(node->right_);
         std::unique_ptr<Node> temp = std::move(new_root->left_);
@@ -98,25 +105,22 @@ class AVLTree {
         update_height(new_root);
 
         node = std::move(new_root);
-        return Error::OK;
     }
 
-    Error insert_node(std::unique_ptr<Node>& root, const KeyT& key) {
+    void insert_node(std::unique_ptr<Node>& root, const KeyT& key) {
         if (root == nullptr) {
             root = std::make_unique<Node>(key);
-            return Error::OK;
+            return;
         }
 
         if (key < root->key_) {
-            auto err = insert_node(root->left_, key);
-            if (err != Error::OK) return err;
+            insert_node(root->left_, key);
             root->left_->parent_ = root.get();
         } else if (key > root->key_) {
-            auto err = insert_node(root->right_, key);
-            if (err != Error::OK) return err;
+            insert_node(root->right_, key);
             root->right_->parent_ = root.get();
         } else {
-            return Error::REPEAT_ELEM;
+            throw DuplicateKeyErr();
         }
 
         update_height(root);
@@ -141,8 +145,6 @@ class AVLTree {
                 left_rotate(root);
             }
         }
-
-        return Error::OK;
     }
 
     void generate_graph(std::ostream& out, const std::unique_ptr<Node>& node) const {
@@ -265,9 +267,11 @@ class AVLTree {
     }; // namespace Iterator
 
     void insert(KeyT key) {
-        auto err = insert_node(root_, key);
-        if (err != Error::OK) return;
-        return;
+        try {
+            insert_node(root_, key);
+        } catch (const DuplicateKeyErr& err) {
+            std::cerr << "error: " << err.what() << std::endl;
+        }
     }
 
      Iterator lower_bound(const KeyT& key) const {
