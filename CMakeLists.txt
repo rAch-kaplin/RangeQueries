@@ -28,3 +28,6 @@ foreach(testfile ${TEST_FILES})
     )
 
 endforeach()
+
+add_subdirectory(tests)
+
