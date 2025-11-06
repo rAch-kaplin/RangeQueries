@@ -23,6 +23,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential cmake graphviz
 
+          cd /usr/src/gtest
+          sudo cmake .
+          sudo make
+          sudo cp lib/*.a /usr/lib
+
       - name: Configure project
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
